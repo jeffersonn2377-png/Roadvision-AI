@@ -3,7 +3,8 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { damagesAPI, maintenanceAPI } from '../services/api';
 import BoundingBoxCanvas from '../components/BoundingBoxCanvas';
 import StatusBadge from '../components/StatusBadge';
-import { ArrowLeft, MapPin, Gauge, ShieldAlert, DollarSign, Wrench, CheckCircle2, RotateCw } from 'lucide-react';
+import ConsentDispatchModal from '../components/ConsentDispatchModal';
+import { ArrowLeft, MapPin, Gauge, ShieldAlert, DollarSign, Wrench, CheckCircle2, RotateCw, ShieldCheck, Compass, FileText } from 'lucide-react';
 
 export default function DamageDetailsPage() {
   const { id } = useParams();
@@ -11,6 +12,7 @@ export default function DamageDetailsPage() {
   const [record, setRecord] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [isConsentModalOpen, setIsConsentModalOpen] = useState(false);
 
   const fetchDetail = async () => {
     setLoading(true);
@@ -73,16 +75,19 @@ export default function DamageDetailsPage() {
           <span>Back</span>
         </button>
         <div className="flex items-center space-x-2 font-mono text-xs text-cyan-400 font-bold">
-          <span>DAMAGE RECORD #{record.id}</span>
+          <span>DAMAGE INSPECTION RECORD #{record.id}</span>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         
-        {/* Left Column: Image Canvas Overlay (7 cols) */}
+        {/* Left Column: Image Canvas Overlay & Geolocation Details (7 cols) */}
         <div className="lg:col-span-7 space-y-6">
           <div className="p-6 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-4">
-            <h3 className="font-['Outfit'] text-base font-bold text-white">AI Bounding Box Visualization</h3>
+            <h3 className="font-['Outfit'] text-base font-bold text-white flex items-center justify-between">
+              <span>AI Bounding Box Visualization</span>
+              <span className="text-xs font-mono text-cyan-400">HIGH-PRECISION CV CANVAS</span>
+            </h3>
 
             <BoundingBoxCanvas
               imageUrl={`http://localhost:8000/uploads/${record.image_path}`}
@@ -92,9 +97,31 @@ export default function DamageDetailsPage() {
               severityScore={record.severity_score}
             />
           </div>
+
+          {/* Reverse Geocoded Location Metadata */}
+          <div className="p-6 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-3">
+            <div className="flex items-center justify-between text-xs font-mono font-bold text-cyan-400 uppercase tracking-wider">
+              <span className="flex items-center space-x-2">
+                <MapPin className="w-4 h-4 text-cyan-400" />
+                <span>Geospatial Address & Accuracy</span>
+              </span>
+              <span>±{record.gps_accuracy || 5}m Precision</span>
+            </div>
+
+            <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2 text-xs">
+              <p className="font-['Outfit'] font-bold text-white text-sm">{record.road_name}</p>
+              <p className="text-slate-300 font-semibold">{record.formatted_address || record.road_name}</p>
+              <div className="grid grid-cols-2 gap-2 text-slate-400 pt-2 border-t border-slate-800 font-mono">
+                <p>District: <strong className="text-slate-200">{record.district || 'Central Zone'}</strong></p>
+                <p>Landmark: <strong className="text-slate-200">{record.landmark || 'Near Public Corridor'}</strong></p>
+                <p>Latitude: <strong className="text-slate-200">{record.latitude}</strong></p>
+                <p>Longitude: <strong className="text-slate-200">{record.longitude}</strong></p>
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* Right Column: Complete Metadata Card (5 cols) */}
+        {/* Right Column: Metadata & Official Consent Card (5 cols) */}
         <div className="lg:col-span-5 space-y-6">
           
           <div className="p-6 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-6">
@@ -104,9 +131,9 @@ export default function DamageDetailsPage() {
                 <h2 className="font-['Outfit'] text-xl font-bold text-white">{record.road_name}</h2>
                 <StatusBadge type="status" value={record.status} />
               </div>
-              <p className="text-xs text-slate-400 font-mono">
-                GPS: {record.latitude}, {record.longitude}
-              </p>
+              <div className="flex items-center space-x-2">
+                <StatusBadge type="consent" value={record.consent_status} />
+              </div>
             </div>
 
             {/* Score Grid */}
@@ -143,30 +170,39 @@ export default function DamageDetailsPage() {
               </p>
             </div>
 
-            {/* Context Factors */}
-            <div className="space-y-1.5 text-xs text-slate-300 border-t border-slate-800 pt-3">
-              <div className="flex justify-between">
-                <span>Traffic Volume:</span>
-                <span className="font-semibold text-white">{record.traffic_level}</span>
+            {/* Official Consent Approval Card */}
+            {record.consent_status === 'APPROVED' ? (
+              <div className="p-4 rounded-xl bg-emerald-950/30 border border-emerald-500/50 space-y-2 text-xs">
+                <div className="flex items-center justify-between text-emerald-400 font-bold">
+                  <span className="flex items-center space-x-1.5 font-['Outfit']">
+                    <ShieldCheck className="w-4 h-4" />
+                    <span>CONSENT OFFICER APPROVED</span>
+                  </span>
+                  <span className="font-mono text-[10px] bg-emerald-500/20 px-2 py-0.5 rounded">SANCTIONED</span>
+                </div>
+                <p className="text-slate-300 font-mono font-bold">OFFICIAL CODE: {record.official_consent_code}</p>
+                {record.officer_notes && (
+                  <p className="text-slate-400 italic font-mono text-[11px] pt-1">"{record.officer_notes}"</p>
+                )}
               </div>
-              <div className="flex justify-between">
-                <span>Road Importance:</span>
-                <span className="font-semibold text-white">{record.road_importance}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Risk Level:</span>
-                <span className="font-semibold text-amber-400">{record.risk_level}</span>
-              </div>
-            </div>
+            ) : (
+              <button
+                onClick={() => setIsConsentModalOpen(true)}
+                className="w-full py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 font-['Outfit'] font-bold text-white text-xs hover:from-cyan-400 hover:to-blue-500 shadow-lg shadow-cyan-500/20 flex items-center justify-center space-x-2"
+              >
+                <ShieldCheck className="w-4 h-4" />
+                <span>DISPATCH TO CONSENT OFFICER FOR APPROVAL</span>
+              </button>
+            )}
 
             {/* Actions */}
             <div className="pt-3 border-t border-slate-800 flex items-center space-x-3">
               <button
                 onClick={handleDispatch}
-                className="w-full py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 font-['Outfit'] font-bold text-white text-xs hover:from-cyan-400 hover:to-blue-500 shadow-lg shadow-cyan-500/20 flex items-center justify-center space-x-2"
+                className="w-full py-3 rounded-xl bg-slate-800 border border-slate-700 font-['Outfit'] font-bold text-cyan-300 text-xs hover:bg-slate-700 flex items-center justify-center space-x-2"
               >
                 <Wrench className="w-4 h-4" />
-                <span>Dispatch Maintenance Crew</span>
+                <span>Dispatch Maintenance Ticket</span>
               </button>
             </div>
 
@@ -175,6 +211,18 @@ export default function DamageDetailsPage() {
         </div>
 
       </div>
+
+      {/* Consent Officer Dispatch Modal */}
+      {record && (
+        <ConsentDispatchModal
+          isOpen={isConsentModalOpen}
+          onClose={() => setIsConsentModalOpen(false)}
+          damageRecord={record}
+          onDispatchSuccess={() => {
+            fetchDetail();
+          }}
+        />
+      )}
 
     </div>
   );

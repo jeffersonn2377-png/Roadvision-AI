@@ -12,6 +12,7 @@ import DashboardPage from './pages/DashboardPage';
 import ScannerPage from './pages/ScannerPage';
 import MapPage from './pages/MapPage';
 import PriorityQueuePage from './pages/PriorityQueuePage';
+import ConsentOfficerPage from './pages/ConsentOfficerPage';
 import AnalyticsPage from './pages/AnalyticsPage';
 import PredictionPage from './pages/PredictionPage';
 import MaintenancePage from './pages/MaintenancePage';
@@ -51,6 +52,7 @@ function AppContent() {
             <Route path="/scanner" element={<ScannerPage />} />
             <Route path="/map" element={<MapPage />} />
             <Route path="/priority" element={<PriorityQueuePage />} />
+            <Route path="/consent-officers" element={<ConsentOfficerPage />} />
             <Route path="/analytics" element={<AnalyticsPage />} />
             <Route path="/prediction" element={<PredictionPage />} />
             <Route path="/maintenance" element={<MaintenancePage />} />

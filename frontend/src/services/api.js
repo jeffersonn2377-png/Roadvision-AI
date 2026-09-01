@@ -23,6 +23,48 @@ export const dashboardAPI = {
   },
 };
 
+export const locationAPI = {
+  reverseGeocode: async (lat, lng) => {
+    const res = await api.get('/api/location/reverse-geocode', { params: { lat, lng } });
+    return res.data;
+  },
+  extractExif: async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await api.post('/api/location/extract-exif', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return res.data;
+  },
+};
+
+export const consentAPI = {
+  getOfficers: async () => {
+    const res = await api.get('/api/consent/officers');
+    return res.data;
+  },
+  createOfficer: async (officerData) => {
+    const res = await api.post('/api/consent/officers', officerData);
+    return res.data;
+  },
+  dispatchToOfficer: async (payload) => {
+    const res = await api.post('/api/consent/dispatch', payload);
+    return res.data;
+  },
+  getConsentRequests: async (params = {}) => {
+    const res = await api.get('/api/consent/requests', { params });
+    return res.data;
+  },
+  getDossier: async (damageId) => {
+    const res = await api.get(`/api/consent/dossier/${damageId}`);
+    return res.data;
+  },
+  reviewRequest: async (damageId, payload) => {
+    const res = await api.post(`/api/consent/review/${damageId}`, payload);
+    return res.data;
+  },
+};
+
 export const scannerAPI = {
   uploadScan: async (formData) => {
     const res = await api.post('/api/scans/upload', formData, {

@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { priorityAPI } from '../services/api';
 import StatusBadge from '../components/StatusBadge';
-import { ListOrdered, Search, Cpu, ArrowRight, RotateCw, Calculator, Sliders, CheckCircle2 } from 'lucide-react';
+import ConsentDispatchModal from '../components/ConsentDispatchModal';
+import { ListOrdered, Search, Cpu, ArrowRight, RotateCw, Calculator, ShieldCheck, MapPin } from 'lucide-react';
 
 export default function PriorityQueuePage() {
   const [data, setData] = useState(null);
@@ -12,6 +13,9 @@ export default function PriorityQueuePage() {
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState('ALL');
   const [filterPriority, setFilterPriority] = useState('ALL');
+
+  // Consent Modal
+  const [selectedDamageForConsent, setSelectedDamageForConsent] = useState(null);
 
   // Custom Priority Calculator state
   const [showCalc, setShowCalc] = useState(false);
@@ -52,7 +56,7 @@ export default function PriorityQueuePage() {
   };
 
   const filteredQueue = (data?.queue || []).filter((item) => {
-    if (search && !item.road.toLowerCase().includes(search.toLowerCase())) return false;
+    if (search && !item.road.toLowerCase().includes(search.toLowerCase()) && !item.formatted_address.toLowerCase().includes(search.toLowerCase())) return false;
     if (filterType !== 'ALL' && item.damage_type !== filterType) return false;
     if (filterPriority !== 'ALL' && item.priority_level !== filterPriority) return false;
     return true;
@@ -66,7 +70,7 @@ export default function PriorityQueuePage() {
         <div>
           <h1 className="font-['Outfit'] text-2xl lg:text-3xl font-extrabold text-white flex items-center space-x-3">
             <ListOrdered className="w-6 h-6 text-cyan-400" />
-            <span>Intelligent Repair Priority Queue</span>
+            <span>Intelligent Repair Priority Queue & Consent Status</span>
           </h1>
           <p className="text-xs lg:text-sm text-slate-400">
             Multi-factor weighted ranking: Severity (35%) + Area Risk (30%) + Traffic Volume (20%) + Road Importance (15%).
@@ -179,7 +183,7 @@ export default function PriorityQueuePage() {
       {/* Filter Bar */}
       <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div>
-          <label className="block text-[11px] text-slate-400 mb-1">Search Road Name</label>
+          <label className="block text-[11px] text-slate-400 mb-1">Search Road / Address</label>
           <div className="relative">
             <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-3" />
             <input
@@ -235,36 +239,64 @@ export default function PriorityQueuePage() {
               <div className="w-10 h-10 rounded-xl bg-slate-950 border border-slate-800 font-['Outfit'] font-extrabold text-cyan-400 flex items-center justify-center text-sm shrink-0">
                 #{item.rank}
               </div>
-              <div className="space-y-1">
-                <div className="flex items-center space-x-2">
+              <div className="space-y-1.5">
+                <div className="flex flex-wrap items-center gap-2">
                   <h3 className="font-['Outfit'] font-bold text-base text-white">{item.road}</h3>
                   <StatusBadge type="priority" value={item.priority_level} />
+                  <StatusBadge type="consent" value={item.consent_status} />
                 </div>
-                <p className="text-xs text-slate-400">
-                  Defect: <span className="text-cyan-300 font-semibold">{item.damage_type}</span> | Traffic: <span className="text-slate-200">{item.traffic_level}</span> | Importance: <span className="text-slate-200">{item.road_importance}</span>
+                <p className="text-xs text-slate-400 flex items-center space-x-1">
+                  <MapPin className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                  <span>{item.formatted_address || item.road}</span>
                 </p>
                 <p className="text-xs text-slate-400">
-                  Est. Repair Cost: <span className="text-emerald-400 font-semibold">{item.estimated_cost}</span>
+                  Defect: <span className="text-cyan-300 font-semibold">{item.damage_type}</span> | Traffic: <span className="text-slate-200">{item.traffic_level}</span> | Est. Cost: <span className="text-emerald-400 font-semibold">{item.estimated_cost}</span>
                 </p>
+                {item.official_consent_code && (
+                  <p className="text-[11px] font-mono text-cyan-400 font-bold">
+                    Official Consent Approval Code: {item.official_consent_code}
+                  </p>
+                )}
               </div>
             </div>
 
-            <div className="flex items-center space-x-4 self-end md:self-auto">
-              <div className="text-right">
+            <div className="flex items-center space-x-3 self-end md:self-auto">
+              <div className="text-right pr-2">
                 <p className="text-[10px] text-slate-400 font-mono">PRIORITY SCORE</p>
                 <p className="font-['Outfit'] font-extrabold text-2xl text-cyan-300">{item.priority_score}<span className="text-xs font-normal text-slate-500">/100</span></p>
               </div>
 
+              <button
+                onClick={() => setSelectedDamageForConsent(item)}
+                className="px-3 py-2 rounded-xl bg-cyan-950/40 border border-cyan-500/40 text-xs font-semibold text-cyan-300 hover:bg-cyan-500 hover:text-slate-950 transition-all flex items-center space-x-1"
+              >
+                <ShieldCheck className="w-4 h-4" />
+                <span>Send to Officer</span>
+              </button>
+
               <Link
                 to={`/damages/${item.id}`}
-                className="px-4 py-2 rounded-xl bg-slate-800 border border-slate-700 text-xs font-semibold text-cyan-400 hover:bg-cyan-500/10"
+                className="px-3.5 py-2 rounded-xl bg-slate-800 border border-slate-700 text-xs font-semibold text-slate-200 hover:bg-slate-700"
               >
-                Inspect Details
+                Inspect
               </Link>
             </div>
           </div>
         ))}
       </div>
+
+      {/* Consent Officer Dispatch Modal */}
+      {selectedDamageForConsent && (
+        <ConsentDispatchModal
+          isOpen={!!selectedDamageForConsent}
+          onClose={() => setSelectedDamageForConsent(null)}
+          damageRecord={selectedDamageForConsent}
+          onDispatchSuccess={() => {
+            fetchQueue();
+            setSelectedDamageForConsent(null);
+          }}
+        />
+      )}
 
     </div>
   );

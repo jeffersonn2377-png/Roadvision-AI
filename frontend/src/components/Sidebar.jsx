@@ -12,7 +12,8 @@ import {
   Settings,
   Home,
   Sliders,
-  Sparkles
+  Sparkles,
+  ShieldCheck
 } from 'lucide-react';
 
 export default function Sidebar() {
@@ -22,6 +23,7 @@ export default function Sidebar() {
     { label: 'AI Road Scanner', path: '/scanner', icon: ScanLine, highlight: true },
     { label: 'Damage Map', path: '/map', icon: MapPin },
     { label: 'Priority Queue', path: '/priority', icon: ListOrdered },
+    { label: 'Consent Officers', path: '/consent-officers', icon: ShieldCheck, highlightBadge: 'NEW' },
     { label: 'Analytics', path: '/analytics', icon: BarChart3 },
     { label: 'Prediction Engine', path: '/prediction', icon: TrendingUp },
     { label: 'Maintenance Portal', path: '/maintenance', icon: Wrench },
@@ -50,11 +52,16 @@ export default function Sidebar() {
                 }`
               }
             >
-              <Icon className={`w-4 h-4 ${item.highlight ? 'text-cyan-400' : ''}`} />
+              <Icon className={`w-4 h-4 ${item.highlight || item.highlightBadge ? 'text-cyan-400' : ''}`} />
               <span>{item.label}</span>
               {item.highlight && (
                 <span className="ml-auto bg-cyan-500/20 text-cyan-400 text-[10px] px-1.5 py-0.5 rounded font-mono font-bold">
                   AI
+                </span>
+              )}
+              {item.highlightBadge && (
+                <span className="ml-auto bg-emerald-500/20 text-emerald-400 text-[10px] px-1.5 py-0.5 rounded font-mono font-bold">
+                  {item.highlightBadge}
                 </span>
               )}
             </NavLink>
@@ -65,10 +72,10 @@ export default function Sidebar() {
       <div className="mt-8 p-3 rounded-xl bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800">
         <div className="flex items-center space-x-2 text-cyan-400 text-xs font-semibold mb-1">
           <Sparkles className="w-3.5 h-3.5" />
-          <span>Hardware Free</span>
+          <span>High-Precision Geocoding</span>
         </div>
         <p className="text-[11px] text-slate-400 leading-relaxed">
-          Full software prototype operating with road media & software GPS.
+          EXIF GPS extraction, Osm reverse lookup, & direct Consent Officer sanctioning.
         </p>
       </div>
     </aside>

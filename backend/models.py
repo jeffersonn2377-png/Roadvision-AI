@@ -31,6 +31,22 @@ class RoadScan(Base):
     damage_records = relationship("DamageRecord", back_populates="scan", cascade="all, delete-orphan")
 
 
+class ConsentOfficer(Base):
+    __tablename__ = "consent_officers"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(120), nullable=False)
+    title = Column(String(120), nullable=False)
+    department = Column(String(150), nullable=False)
+    email = Column(String(120), unique=True, nullable=False)
+    phone = Column(String(30), nullable=True)
+    jurisdiction_district = Column(String(150), nullable=False)
+    is_active = Column(Integer, default=1)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    damage_records = relationship("DamageRecord", back_populates="consent_officer")
+
+
 class DamageRecord(Base):
     __tablename__ = "damage_records"
 
@@ -43,6 +59,14 @@ class DamageRecord(Base):
     damage_area = Column(Float, nullable=False)  # in m^2
     latitude = Column(Float, nullable=False)
     longitude = Column(Float, nullable=False)
+    
+    # Location accuracy & reverse geocoded details
+    formatted_address = Column(Text, nullable=True)
+    district = Column(String(150), nullable=True)
+    landmark = Column(String(150), nullable=True)
+    gps_accuracy = Column(Float, default=5.0)  # accuracy in meters
+    location_source_type = Column(String(50), default="REVERSE_GEOCODED")  # EXIF_GPS, HIGH_ACCURACY_DEVICE_GPS, MAP_PINPOINT, REVERSE_GEOCODED
+    
     traffic_level = Column(String(50), default="HIGH")  # HIGH, MEDIUM, LOW
     road_importance = Column(String(50), default="Arterial")  # Highway, Arterial, Collector, Local
     risk_level = Column(String(50), default="HIGH")  # CRITICAL, HIGH, MODERATE, LOW
@@ -55,8 +79,17 @@ class DamageRecord(Base):
     detected_at = Column(DateTime, default=datetime.datetime.utcnow)
     status = Column(String(50), default="Pending")  # Pending, Assigned, In Progress, Completed
 
+    # Consent Officer dispatch & sign-off fields
+    consent_status = Column(String(50), default="DRAFT")  # DRAFT, PENDING_CONSENT, APPROVED, REJECTED, MORE_INFO_REQUESTED
+    consent_officer_id = Column(Integer, ForeignKey("consent_officers.id"), nullable=True)
+    consent_sent_at = Column(DateTime, nullable=True)
+    consent_responded_at = Column(DateTime, nullable=True)
+    officer_notes = Column(Text, nullable=True)
+    official_consent_code = Column(String(100), nullable=True)
+
     scan = relationship("RoadScan", back_populates="damage_records")
     maintenance = relationship("Maintenance", back_populates="damage_record", uselist=False, cascade="all, delete-orphan")
+    consent_officer = relationship("ConsentOfficer", back_populates="damage_records")
 
 
 class RoadHistory(Base):
@@ -82,3 +115,4 @@ class Maintenance(Base):
     notes = Column(Text, nullable=True)
 
     damage_record = relationship("DamageRecord", back_populates="maintenance")
+

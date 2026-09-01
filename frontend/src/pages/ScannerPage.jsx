@@ -1,21 +1,22 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { scannerAPI } from '../services/api';
+import { scannerAPI, locationAPI } from '../services/api';
 import BoundingBoxCanvas from '../components/BoundingBoxCanvas';
 import StatusBadge from '../components/StatusBadge';
+import LocationPickerModal from '../components/LocationPickerModal';
+import ConsentDispatchModal from '../components/ConsentDispatchModal';
 import {
   Upload,
-  Image as ImageIcon,
-  Film,
+  ImageIcon,
   MapPin,
   Compass,
-  Sliders,
   CheckCircle2,
   AlertCircle,
-  RotateCw,
-  ArrowRight,
   Sparkles,
-  Cpu
+  Cpu,
+  ShieldCheck,
+  Send,
+  Navigation
 } from 'lucide-react';
 
 export default function ScannerPage() {
@@ -25,25 +26,36 @@ export default function ScannerPage() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [filePreview, setFilePreview] = useState(null);
   const [selectedPreset, setSelectedPreset] = useState(null);
+  const [exifBadge, setExifBadge] = useState(null);
   
-  // Location states (Option 1: Browser, Option 2: Manual, Option 3: Predefined Demo)
-  const [locationMode, setLocationMode] = useState('demo'); // 'browser' | 'manual' | 'demo'
-  const [roadName, setRoadName] = useState('MG Road');
+  // Location states
+  const [locationMode, setLocationMode] = useState('demo'); // 'browser' | 'manual' | 'demo' | 'map_pin' | 'exif'
+  const [roadName, setRoadName] = useState('MG Road Expressway');
   const [latitude, setLatitude] = useState(12.9716);
   const [longitude, setLongitude] = useState(77.5946);
+  const [formattedAddress, setFormattedAddress] = useState('MG Road, Ward 4, Bengaluru 560001');
+  const [district, setDistrict] = useState('Central Infrastructure District');
+  const [landmark, setLandmark] = useState('Near Metro Pillar 142');
+  const [gpsAccuracy, setGpsAccuracy] = useState(5.0);
+  const [locationSourceType, setLocationSourceType] = useState('REVERSE_GEOCODED');
+
   const [trafficLevel, setTrafficLevel] = useState('HIGH');
   const [roadImportance, setRoadImportance] = useState('Arterial');
 
+  // Modals
+  const [isMapPickerOpen, setIsMapPickerOpen] = useState(false);
+  const [isConsentModalOpen, setIsConsentModalOpen] = useState(false);
+
   // Processing & Result states
-  const [status, setStatus] = useState('idle'); // 'idle' | 'uploading' | 'processing' | 'ai_detection' | 'complete'
+  const [status, setStatus] = useState('idle');
   const [error, setError] = useState('');
   const [analysisResult, setAnalysisResult] = useState(null);
 
   const demoLocations = [
-    { name: 'MG Road Expressway', lat: 12.9716, lng: 77.5946 },
-    { name: 'Anna Nagar 2nd Avenue', lat: 13.0850, lng: 80.2101 },
-    { name: 'Central Avenue Corridor', lat: 12.9784, lng: 77.6408 },
-    { name: 'Outer Ring Road Highway', lat: 13.0123, lng: 77.5900 },
+    { name: 'MG Road Expressway', lat: 12.9716, lng: 77.5946, addr: 'MG Road, Central Infrastructure District, Ward 4' },
+    { name: 'Anna Nagar 2nd Avenue', lat: 13.0850, lng: 80.2101, addr: 'Anna Nagar 2nd Avenue, North Zone, Chennai 600040' },
+    { name: 'Central Avenue Corridor', lat: 12.9784, lng: 77.6408, addr: 'Central Avenue, Indiranagar Ward 82' },
+    { name: 'Outer Ring Road Highway', lat: 13.0123, lng: 77.5900, addr: 'Outer Ring Road, High Speed Transit Corridor' },
   ];
 
   const presets = [
@@ -54,7 +66,7 @@ export default function ScannerPage() {
     { key: 'marking', label: 'Faded Road Marking', img: '/uploads/sample_marking_1.jpg' }
   ];
 
-  const handleFileChange = (e) => {
+  const handleFileChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
@@ -66,15 +78,49 @@ export default function ScannerPage() {
     setSelectedFile(file);
     setSelectedPreset(null);
     setError('');
+    setExifBadge(null);
 
     const url = URL.createObjectURL(file);
     setFilePreview(url);
+
+    // Run EXIF extraction for image files
+    if (file.type.startsWith('image/')) {
+      try {
+        const exifData = await locationAPI.extractExif(file);
+        if (exifData.success && exifData.exif_gps) {
+          const lat = exifData.exif_gps.latitude;
+          const lng = exifData.exif_gps.longitude;
+          setLatitude(lat);
+          setLongitude(lng);
+          setGpsAccuracy(exifData.exif_gps.accuracy_meters || 4.5);
+          setLocationSourceType('EXIF_GPS');
+          setLocationMode('exif');
+
+          if (exifData.geocoded) {
+            setRoadName(exifData.geocoded.road_name);
+            setFormattedAddress(exifData.geocoded.formatted_address);
+            setDistrict(exifData.geocoded.district);
+            setLandmark(exifData.geocoded.landmark);
+          }
+
+          setExifBadge({
+            lat,
+            lng,
+            accuracy: exifData.exif_gps.accuracy_meters,
+            source: 'EXIF GPS Metadata'
+          });
+        }
+      } catch (err) {
+        console.log('No EXIF GPS tags found in file');
+      }
+    }
   };
 
   const handlePresetSelect = (presetKey) => {
     setSelectedPreset(presetKey);
     setSelectedFile(null);
     setFilePreview(null);
+    setExifBadge(null);
     setError('');
   };
 
@@ -82,6 +128,9 @@ export default function ScannerPage() {
     setRoadName(loc.name);
     setLatitude(loc.lat);
     setLongitude(loc.lng);
+    setFormattedAddress(loc.addr);
+    setLocationMode('demo');
+    setLocationSourceType('REVERSE_GEOCODED');
   };
 
   const handleGetBrowserLocation = () => {
@@ -90,19 +139,41 @@ export default function ScannerPage() {
       return;
     }
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setLatitude(roundCoord(pos.coords.latitude));
-        setLongitude(roundCoord(pos.coords.longitude));
-        setRoadName('Current Browser Position');
+      async (pos) => {
+        const lat = Math.round(pos.coords.latitude * 1000000) / 1000000;
+        const lng = Math.round(pos.coords.longitude * 1000000) / 1000000;
+        setLatitude(lat);
+        setLongitude(lng);
+        setGpsAccuracy(pos.coords.accuracy ? Math.round(pos.coords.accuracy) : 6.0);
+        setLocationSourceType('HIGH_ACCURACY_DEVICE_GPS');
         setLocationMode('browser');
+
+        try {
+          const geo = await locationAPI.reverseGeocode(lat, lng);
+          setRoadName(geo.road_name);
+          setFormattedAddress(geo.formatted_address);
+          setDistrict(geo.district);
+          setLandmark(geo.landmark);
+        } catch (e) {}
       },
       (err) => {
-        setError('Location permission denied. Please enter coordinates manually or use demo locations.');
-      }
+        setError('Location permission denied. Please select location manually or on map.');
+      },
+      { enableHighAccuracy: true }
     );
   };
 
-  const roundCoord = (val) => Math.round(val * 10000) / 10000;
+  const handleConfirmMapLocation = (locData) => {
+    setLatitude(locData.latitude);
+    setLongitude(locData.longitude);
+    setRoadName(locData.roadName);
+    setFormattedAddress(locData.formattedAddress);
+    setDistrict(locData.district);
+    setLandmark(locData.landmark);
+    setGpsAccuracy(locData.accuracyMeters);
+    setLocationSourceType('MAP_PINPOINT');
+    setLocationMode('map_pin');
+  };
 
   const handleRunAnalysis = async (e) => {
     e.preventDefault();
@@ -124,23 +195,27 @@ export default function ScannerPage() {
     formData.append('road_name', roadName);
     formData.append('latitude', latitude);
     formData.append('longitude', longitude);
-    formData.append('location_source', locationMode === 'browser' ? 'Browser Geolocation' : locationMode === 'manual' ? 'Manual Coordinates' : 'Predefined Demo Location');
+    formData.append('formatted_address', formattedAddress);
+    formData.append('district', district);
+    formData.append('landmark', landmark);
+    formData.append('gps_accuracy', gpsAccuracy);
+    formData.append('location_source_type', locationSourceType);
     formData.append('traffic_level', trafficLevel);
     formData.append('road_importance', roadImportance);
 
     try {
-      await new Promise((r) => setTimeout(r, 400));
+      await new Promise((r) => setTimeout(r, 300));
       setStatus('processing');
-      await new Promise((r) => setTimeout(r, 400));
+      await new Promise((r) => setTimeout(r, 300));
       setStatus('ai_detection');
 
       const res = await scannerAPI.uploadScan(formData);
       
-      await new Promise((r) => setTimeout(r, 300));
+      await new Promise((r) => setTimeout(r, 200));
       setAnalysisResult(res);
       setStatus('complete');
     } catch (err) {
-      setError(err.response?.data?.detail || 'AI analysis failed. Please verify backend service execution.');
+      setError(err.response?.data?.detail || 'AI analysis failed. Please verify backend execution.');
       setStatus('idle');
     }
   };
@@ -151,13 +226,13 @@ export default function ScannerPage() {
       {/* Title */}
       <div className="border-b border-slate-800 pb-5">
         <h1 className="font-['Outfit'] text-2xl lg:text-3xl font-extrabold text-white flex items-center space-x-3">
-          <span>AI Road Scanner & Damage Inspection</span>
+          <span>AI Road Scanner & High-Precision Inspection</span>
           <span className="bg-cyan-500/20 text-cyan-400 text-xs px-2.5 py-1 rounded font-mono font-bold border border-cyan-500/40">
-            DemoDetector v1.0
+            ENGINE v2.0
           </span>
         </h1>
         <p className="text-xs lg:text-sm text-slate-400">
-          Upload road media or select a sample image to execute real-time AI damage classification & priority calculation.
+          Upload road media with automatic EXIF GPS extraction & map pinpoint geocoding for instant Consent Officer dispatch.
         </p>
       </div>
 
@@ -217,7 +292,7 @@ export default function ScannerPage() {
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-white">Click or drag & drop road image / video</p>
-                  <p className="text-[11px] text-slate-400 mt-1">Supports JPG, PNG, WEBP, MP4, MOV (Max 50MB)</p>
+                  <p className="text-[11px] text-slate-400 mt-1">Extracts embedded EXIF GPS tags from camera photos automatically</p>
                 </div>
                 {selectedFile && (
                   <p className="text-xs font-mono text-cyan-400 font-semibold truncate">
@@ -225,45 +300,59 @@ export default function ScannerPage() {
                   </p>
                 )}
               </div>
+
+              {/* EXIF GPS Extraction Alert Badge */}
+              {exifBadge && (
+                <div className="p-3 rounded-xl bg-cyan-950/40 border border-cyan-500/50 text-xs text-cyan-300 flex items-center justify-between animate-fadeIn font-mono">
+                  <div className="flex items-center space-x-2">
+                    <Compass className="w-4 h-4 text-cyan-400 animate-spin" />
+                    <span>EXIF GPS EXTRACTED FROM PHOTO: <strong>{exifBadge.lat}, {exifBadge.lng}</strong></span>
+                  </div>
+                  <span className="bg-cyan-500/20 text-cyan-300 text-[10px] px-2 py-0.5 rounded font-bold border border-cyan-500/40">±{exifBadge.accuracy}m</span>
+                </div>
+              )}
+
             </div>
 
-            {/* Location Selector */}
+            {/* Location Selector & Reverse Geocoding */}
             <div className="p-6 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <label className="font-['Outfit'] text-sm font-bold text-white">
-                  2. Software Location Assignment
+                  2. Geospatial Location & Reverse Geocoding
                 </label>
-                <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs">
+
+                <div className="flex flex-wrap gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs">
                   <button
                     type="button"
                     onClick={() => setLocationMode('demo')}
-                    className={`px-3 py-1 rounded-lg font-semibold transition-colors ${
+                    className={`px-2.5 py-1 rounded-lg font-semibold transition-colors ${
                       locationMode === 'demo' ? 'bg-cyan-500 text-slate-950' : 'text-slate-400'
                     }`}
                   >
-                    Demo Preset
+                    Preset
                   </button>
                   <button
                     type="button"
                     onClick={handleGetBrowserLocation}
-                    className={`px-3 py-1 rounded-lg font-semibold transition-colors ${
+                    className={`px-2.5 py-1 rounded-lg font-semibold transition-colors ${
                       locationMode === 'browser' ? 'bg-cyan-500 text-slate-950' : 'text-slate-400'
                     }`}
                   >
-                    Browser GPS
+                    Device GPS
                   </button>
                   <button
                     type="button"
-                    onClick={() => setLocationMode('manual')}
-                    className={`px-3 py-1 rounded-lg font-semibold transition-colors ${
-                      locationMode === 'manual' ? 'bg-cyan-500 text-slate-950' : 'text-slate-400'
+                    onClick={() => setIsMapPickerOpen(true)}
+                    className={`px-2.5 py-1 rounded-lg font-semibold transition-colors ${
+                      locationMode === 'map_pin' ? 'bg-cyan-500 text-slate-950' : 'text-slate-400 hover:text-cyan-400'
                     }`}
                   >
-                    Manual
+                    🗺️ Map Pin
                   </button>
                 </div>
               </div>
 
+              {/* Demo Location Buttons */}
               {locationMode === 'demo' && (
                 <div className="grid grid-cols-2 gap-2">
                   {demoLocations.map((loc) => (
@@ -277,8 +366,8 @@ export default function ScannerPage() {
                           : 'bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-700'
                       }`}
                     >
-                      <p className="font-semibold">{loc.name}</p>
-                      <p className="text-[10px] font-mono text-slate-400">{loc.lat}, {loc.lng}</p>
+                      <p className="font-semibold text-white">{loc.name}</p>
+                      <p className="text-[10px] font-mono text-slate-400 truncate">{loc.addr}</p>
                     </button>
                   ))}
                 </div>
@@ -286,7 +375,7 @@ export default function ScannerPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
                 <div>
-                  <label className="block text-[11px] text-slate-400 mb-1">Road Name</label>
+                  <label className="block text-[11px] text-slate-400 mb-1">Road / Street Name</label>
                   <input
                     type="text"
                     value={roadName}
@@ -298,7 +387,7 @@ export default function ScannerPage() {
                   <label className="block text-[11px] text-slate-400 mb-1">Latitude</label>
                   <input
                     type="number"
-                    step="0.0001"
+                    step="0.000001"
                     value={latitude}
                     onChange={(e) => setLatitude(parseFloat(e.target.value))}
                     className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white font-mono"
@@ -308,12 +397,21 @@ export default function ScannerPage() {
                   <label className="block text-[11px] text-slate-400 mb-1">Longitude</label>
                   <input
                     type="number"
-                    step="0.0001"
+                    step="0.000001"
                     value={longitude}
                     onChange={(e) => setLongitude(parseFloat(e.target.value))}
                     className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white font-mono"
                   />
                 </div>
+              </div>
+
+              {/* Formatted Reverse Geocoded Address Box */}
+              <div className="p-3 rounded-xl bg-slate-950 border border-slate-800/80 space-y-1">
+                <div className="flex items-center justify-between text-[11px] text-slate-500 font-mono">
+                  <span>REVERSE GEOCODED STREET ADDRESS</span>
+                  <span className="text-cyan-400 font-semibold">Accurate ±{gpsAccuracy}m</span>
+                </div>
+                <p className="text-xs text-slate-200 font-semibold">{formattedAddress}</p>
               </div>
 
               {/* Traffic & Importance Factors */}
@@ -331,7 +429,7 @@ export default function ScannerPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[11px] text-slate-400 mb-1">Road Classification (15% Weight)</label>
+                  <label className="block text-[11px] text-slate-400 mb-1">Road Importance (15% Weight)</label>
                   <select
                     value={roadImportance}
                     onChange={(e) => setRoadImportance(e.target.value)}
@@ -356,7 +454,7 @@ export default function ScannerPage() {
               <Cpu className="w-5 h-5" />
               <span>
                 {status === 'idle' || status === 'complete'
-                  ? 'ANALYZE ROAD MEDIA WITH AI'
+                  ? 'ANALYZE ROAD INSPECTION MEDIA WITH AI'
                   : `PROCESSING (${status.toUpperCase()})...`}
               </span>
             </button>
@@ -365,7 +463,7 @@ export default function ScannerPage() {
 
         </div>
 
-        {/* Right Column: AI Bounding Box Overlay & Calculation Breakdown (5 cols) */}
+        {/* Right Column: AI Bounding Box & Consent Dispatch Action (5 cols) */}
         <div className="lg:col-span-5 space-y-6">
           
           <div className="p-6 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-4">
@@ -435,6 +533,15 @@ export default function ScannerPage() {
                   </p>
                 </div>
 
+                {/* DIRECT CONSENT OFFICER DISPATCH BUTTON */}
+                <button
+                  onClick={() => setIsConsentModalOpen(true)}
+                  className="w-full py-3.5 rounded-xl bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 font-['Outfit'] font-extrabold text-white text-xs hover:from-cyan-400 hover:to-indigo-500 shadow-xl shadow-cyan-500/25 transition-all flex items-center justify-center space-x-2"
+                >
+                  <ShieldCheck className="w-5 h-5" />
+                  <span>DISPATCH ROAD DETAILS TO CONSENT OFFICER</span>
+                </button>
+
                 <div className="flex items-center justify-between pt-2">
                   <button
                     onClick={() => navigate('/priority')}
@@ -458,6 +565,27 @@ export default function ScannerPage() {
         </div>
 
       </div>
+
+      {/* Map Location Picker Modal */}
+      <LocationPickerModal
+        isOpen={isMapPickerOpen}
+        onClose={() => setIsMapPickerOpen(false)}
+        initialLat={latitude}
+        initialLng={longitude}
+        onConfirmLocation={handleConfirmMapLocation}
+      />
+
+      {/* Consent Officer Dispatch Modal */}
+      {analysisResult && (
+        <ConsentDispatchModal
+          isOpen={isConsentModalOpen}
+          onClose={() => setIsConsentModalOpen(false)}
+          damageRecord={analysisResult.record}
+          onDispatchSuccess={() => {
+            navigate('/consent-officers');
+          }}
+        />
+      )}
 
     </div>
   );

@@ -17,11 +17,68 @@ class TokenResponse(BaseModel):
     user_role: str
 
 
+# Location & Geocoding Schemas
+class ReverseGeocodeRequest(BaseModel):
+    latitude: float
+    longitude: float
+
+
+class ReverseGeocodeResponse(BaseModel):
+    road_name: str
+    formatted_address: str
+    district: str
+    city: str
+    pincode: str
+    landmark: str
+    highway_code: Optional[str] = None
+    accuracy_meters: float = 5.0
+
+
+# Consent Officer Schemas
+class ConsentOfficerBase(BaseModel):
+    name: str
+    title: str
+    department: str
+    email: str
+    phone: Optional[str] = None
+    jurisdiction_district: str
+    is_active: Optional[int] = 1
+
+
+class ConsentOfficerCreate(ConsentOfficerBase):
+    pass
+
+
+class ConsentOfficerResponse(ConsentOfficerBase):
+    id: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class DispatchConsentRequest(BaseModel):
+    damage_id: int
+    consent_officer_id: int
+    dispatch_notes: Optional[str] = None
+    urgency: Optional[str] = "HIGH"
+
+
+class ReviewConsentRequest(BaseModel):
+    status: str  # APPROVED, REJECTED, MORE_INFO_REQUESTED
+    officer_notes: Optional[str] = None
+
+
 # Scan / Analysis Request
 class AnalyzeRequest(BaseModel):
     road_name: Optional[str] = "MG Road"
     latitude: Optional[float] = 12.9716
     longitude: Optional[float] = 77.5946
+    formatted_address: Optional[str] = None
+    district: Optional[str] = None
+    landmark: Optional[str] = None
+    gps_accuracy: Optional[float] = 5.0
+    location_source_type: Optional[str] = "REVERSE_GEOCODED"
     location_source: Optional[str] = "Demo Location"
     traffic_level: Optional[str] = "HIGH"
     road_importance: Optional[str] = "Arterial"
@@ -37,6 +94,11 @@ class DamageRecordBase(BaseModel):
     damage_area: float
     latitude: float
     longitude: float
+    formatted_address: Optional[str] = None
+    district: Optional[str] = None
+    landmark: Optional[str] = None
+    gps_accuracy: Optional[float] = 5.0
+    location_source_type: Optional[str] = "REVERSE_GEOCODED"
     traffic_level: str
     road_importance: str
     risk_level: str
@@ -47,12 +109,19 @@ class DamageRecordBase(BaseModel):
     image_path: str
     bounding_box: Optional[str] = None
     status: str = "Pending"
+    consent_status: Optional[str] = "DRAFT"
+    consent_officer_id: Optional[int] = None
+    consent_sent_at: Optional[datetime] = None
+    consent_responded_at: Optional[datetime] = None
+    officer_notes: Optional[str] = None
+    official_consent_code: Optional[str] = None
 
 
 class DamageRecordResponse(DamageRecordBase):
     id: int
     scan_id: Optional[int] = None
     detected_at: datetime
+    consent_officer: Optional[ConsentOfficerResponse] = None
 
     class Config:
         from_attributes = True
@@ -90,6 +159,8 @@ class DashboardSummary(BaseModel):
     high_count: int
     moderate_count: int
     minor_count: int
+    pending_consent_count: int = 0
+    approved_consent_count: int = 0
     estimated_total_cost_lakh: float
     overall_road_health: float
     health_status: str

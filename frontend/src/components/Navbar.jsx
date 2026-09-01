@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Shield, PlayCircle, Cpu, User, LogOut, Activity, MapPin } from 'lucide-react';
+import { Shield, PlayCircle, Cpu, User, LogOut, Activity, MapPin, ShieldCheck } from 'lucide-react';
 
 export default function Navbar({ onStartJudgeDemo }) {
   const navigate = useNavigate();
@@ -36,7 +36,7 @@ export default function Navbar({ onStartJudgeDemo }) {
           <div>
             <div className="flex items-center space-x-2">
               <span className="font-['Outfit'] font-extrabold text-xl tracking-wider text-white">ROADVISION</span>
-              <span className="bg-cyan-500/20 text-cyan-400 text-xs px-2 py-0.5 rounded font-mono font-semibold border border-cyan-500/40">AI</span>
+              <span className="bg-cyan-500/20 text-cyan-400 text-xs px-2 py-0.5 rounded font-mono font-semibold border border-cyan-500/40">AI v2.0</span>
             </div>
             <span className="text-[10px] text-slate-400 font-mono tracking-widest uppercase block -mt-1">Smart Infrastructure HUD</span>
           </div>
@@ -46,7 +46,11 @@ export default function Navbar({ onStartJudgeDemo }) {
         <div className="hidden lg:flex items-center space-x-4 bg-slate-900/80 px-4 py-1.5 rounded-full border border-slate-800 text-xs">
           <div className="flex items-center space-x-2 border-r border-slate-800 pr-4">
             <Cpu className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
-            <span className="text-slate-300 font-mono">Engine: <span className="text-cyan-400 font-semibold">DemoDetector v1.0</span></span>
+            <span className="text-slate-300 font-mono">Engine: <span className="text-cyan-400 font-semibold">Engine v2.0</span></span>
+          </div>
+          <div className="flex items-center space-x-2 border-r border-slate-800 pr-4">
+            <ShieldCheck className="w-3.5 h-3.5 text-cyan-400" />
+            <span className="text-slate-300 font-mono">Consent Dispatch: <span className="text-cyan-400 font-semibold">ACTIVE</span></span>
           </div>
           <div className="flex items-center space-x-2 border-r border-slate-800 pr-4">
             <Activity className="w-3.5 h-3.5 text-emerald-400" />
